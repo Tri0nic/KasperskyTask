@@ -1,0 +1,14 @@
+default_rule:
+  included_paths:
+    - folder1/*
+  reviewers:
+    - user1
+    - user2
+
+additional_rule:
+  included_paths:
+    - folder1/*.md
+  excluded_paths:
+    - folder1/services/*
+  reviewers:
+    - user3
