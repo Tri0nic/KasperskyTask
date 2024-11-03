@@ -9,7 +9,7 @@ using WebApplication1.Models;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
 
-// Пример использования можно посмотреть в файле Readme по ссылку:
+// Пример использования можно посмотреть в файле Readme по ссылке:
 // https://github.com/Tri0nic/KasperskyTask
 namespace CodeReviewAPI
 {
