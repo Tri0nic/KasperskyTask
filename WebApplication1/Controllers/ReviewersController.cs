@@ -9,6 +9,8 @@ using WebApplication1.Models;
 using YamlDotNet.Serialization;
 using YamlDotNet.Serialization.NamingConventions;
 
+// Пример использования можно посмотреть в файле Readme по ссылку:
+// https://github.com/Tri0nic/KasperskyTask
 namespace CodeReviewAPI
 {
     [ApiController]
@@ -29,6 +31,7 @@ namespace CodeReviewAPI
             try
             {
                 // Сохраняем статус задачи в JSON при начале выполнения задачи
+                // для "минимизации вероятности потерять обрабатываемый в момент перезагрузки запрос"
                 await SaveJobStatusToFileAsync(jobId, "Running", request.Paths);
 
                 // Загружаем правила ревью
@@ -42,6 +45,8 @@ namespace CodeReviewAPI
                 await SaveJobStatusToFileAsync(jobId, "Completed", request.Paths, "reviewers.yaml", reviewers.Distinct().ToList());
 
                 // Возвращаем результат клиенту
+                // Также можно было бы сделать отправку результата на почту,
+                // чтобы "не заставлять пользователя API синхронно ждать завершения операции, а дать ему возможность через какое-то время уточнить ее результат" 
                 return Ok(new { jobId, reviewers = reviewers.Distinct().ToList() });
             }
             catch (Exception ex)
