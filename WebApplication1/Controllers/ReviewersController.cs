@@ -25,18 +25,73 @@ namespace CodeReviewAPI
         [HttpPost("get-reviewers")]
         public async Task<IActionResult> GetReviewers([FromBody] ReviewRequest request)
         {
+            Guid jobId = Guid.NewGuid();
             try
             {
-                string projectRoot = Directory.GetParent(AppContext.BaseDirectory)?.Parent?.Parent?.Parent?.Parent?.FullName;
+                // Сохраняем статус задачи в JSON при начале выполнения задачи
+                await SaveJobStatusToFileAsync(jobId, "Running", request.Paths);
+
+                // Загружаем правила ревью
+                string projectRoot = GetProjectRootDirectory();
                 var rules = await LoadReviewRulesAsync(Path.Combine(projectRoot, "reviewers.yaml"));
+
+                // Выполняем обработку путей и находим ревьюеров
                 var reviewers = await Task.Run(() => GetReviewersForPaths(request.Paths, rules));
-                return Ok(new { reviewers = reviewers.Distinct().ToList() });
+
+                // Обновляем статус задачи в JSON как завершенный
+                await SaveJobStatusToFileAsync(jobId, "Completed", request.Paths, "reviewers.yaml", reviewers.Distinct().ToList());
+
+                // Возвращаем результат клиенту
+                return Ok(new { jobId, reviewers = reviewers.Distinct().ToList() });
             }
             catch (Exception ex)
             {
+                // Обновляем статус задачи в JSON как ошибочный
+                await SaveJobStatusToFileAsync(jobId, "Failed");
+
                 _logger.LogError(ex, "Error getting reviewers");
                 return StatusCode(500, "Internal server error");
             }
+        }
+
+        private async Task SaveJobStatusToFileAsync(Guid jobId, string status, List<string> paths = null, string reviewerFilePath = null, List<string> reviewers = null)
+        {
+            string filePath = Path.Combine(GetProjectRootDirectory(), "job_status.json");
+
+            Dictionary<Guid, JobStatus> jobStatuses = new Dictionary<Guid, JobStatus>();
+
+            // Чтение существующих данных из файла, если файл существует
+            if (System.IO.File.Exists(filePath))
+            {
+                string jsonContent = await System.IO.File.ReadAllTextAsync(filePath);
+                if (!string.IsNullOrWhiteSpace(jsonContent))
+                {
+                    jobStatuses = System.Text.Json.JsonSerializer.Deserialize<Dictionary<Guid, JobStatus>>(jsonContent);
+                }
+            }
+
+            // Обновляем или добавляем статус задачи
+            if (!jobStatuses.ContainsKey(jobId))
+            {
+                jobStatuses[jobId] = new JobStatus();
+            }
+
+            jobStatuses[jobId].Status = status;
+            jobStatuses[jobId].Timestamp = DateTime.UtcNow;
+            if (paths != null) jobStatuses[jobId].Paths = paths;
+            if (reviewerFilePath != null) jobStatuses[jobId].ReviewerFilePath = reviewerFilePath;
+            if (reviewers != null) jobStatuses[jobId].Reviewers = reviewers;
+
+            // Сохраняем данные обратно в файл
+            string newJsonContent = System.Text.Json.JsonSerializer.Serialize(jobStatuses, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+            await System.IO.File.WriteAllTextAsync(filePath, newJsonContent);
+        }
+
+        private string GetProjectRootDirectory()
+        {
+            string baseDirectory = AppContext.BaseDirectory;
+            string projectRoot = Directory.GetParent(baseDirectory)?.Parent?.Parent?.Parent?.Parent?.FullName;
+            return projectRoot;
         }
 
         private async Task<List<ReviewRule>> LoadReviewRulesAsync(string filePath)
