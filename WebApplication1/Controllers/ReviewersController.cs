@@ -27,7 +27,8 @@ namespace CodeReviewAPI
         {
             try
             {
-                var rules = await LoadReviewRulesAsync(request.ReviewerFilePath);
+                string projectRoot = Directory.GetParent(AppContext.BaseDirectory)?.Parent?.Parent?.Parent?.Parent?.FullName;
+                var rules = await LoadReviewRulesAsync(Path.Combine(projectRoot, "reviewers.yaml"));
                 var reviewers = await Task.Run(() => GetReviewersForPaths(request.Paths, rules));
                 return Ok(new { reviewers = reviewers.Distinct().ToList() });
             }
@@ -53,16 +54,19 @@ namespace CodeReviewAPI
         {
             var reviewers = new HashSet<string>();
 
-            foreach (var path in paths)
+            Parallel.ForEach(paths, path =>
             {
                 foreach (var rule in rules)
                 {
                     if (IsPathIncluded(path, rule) && !IsPathExcluded(path, rule))
                     {
-                        reviewers.UnionWith(rule.Reviewers);
+                        lock (reviewers)
+                        {
+                            reviewers.UnionWith(rule.Reviewers);
+                        }
                     }
                 }
-            }
+            });
 
             return reviewers;
         }
